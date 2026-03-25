@@ -1,33 +1,27 @@
-import { drizzle } from "drizzle-orm/neon-serverless";
-import ws from "ws";
+import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "@shared/schema";
 
 function getDatabaseUrl(): string {
-  // Priority 1: Use NEON_DB_URL if available (external Neon database - works in both dev and production)
+  // Priority 1: Use NEON_DB_URL if available
   if (process.env.NEON_DB_URL) {
     const url = process.env.NEON_DB_URL.trim();
     if (url.startsWith("postgresql://") || url.startsWith("postgres://")) {
-      console.log("Using NEON_DB_URL (external Neon database)");
-      console.log("Database host:", url.split("@")[1]?.split("/")[0] || "unknown");
       return url;
     }
   }
-  
-  // Priority 2: Fall back to DATABASE_URL (Replit's internal database - dev only)
+
+  // Priority 2: Fall back to DATABASE_URL
   if (process.env.DATABASE_URL) {
-    console.log("Using DATABASE_URL from environment variable");
     return process.env.DATABASE_URL;
   }
-  
+
   throw new Error(
     "Database URL not configured. Set NEON_DB_URL or DATABASE_URL.",
   );
 }
 
 const databaseUrl = getDatabaseUrl();
+const sql = neon(databaseUrl);
 
-export const db = drizzle({
-  connection: databaseUrl,
-  schema,
-  ws: ws,
-});
+export const db = drizzle(sql, { schema });

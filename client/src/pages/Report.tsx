@@ -230,68 +230,63 @@ export default function Report() {
       setStatus("loading");
       setError(null);
       setCompletedSteps([]);
-      
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      // Set up SSE connection for progress updates
-      const eventSource = new EventSource(`/api/progress/${sessionId}`);
-      
-      eventSource.onmessage = (event) => {
-        try {
-          const update: ProgressUpdate = JSON.parse(event.data);
-          setCurrentStep(update);
-          
-          if (update.step > 0 && update.step < 100) {
+
+      // Client-side progress simulation (matches original server-side timing)
+      const progressSteps: Array<{ delay: number; step: number; message: string; detail: string }> = [
+        { delay: 0, step: 0, message: "Starting analysis", detail: `Analyzing ${companyName}...` },
+        { delay: 500, step: 1, message: "Step 0: Company Overview", detail: "Gathering company information..." },
+        { delay: 2000, step: 2, message: "Step 1: Strategic Anchoring", detail: "Identifying business drivers..." },
+        { delay: 5000, step: 3, message: "Step 2: Business Functions", detail: "Analyzing departments and KPIs..." },
+        { delay: 8000, step: 4, message: "Step 3: Friction Points", detail: "Identifying operational bottlenecks..." },
+        { delay: 12000, step: 5, message: "Step 4: AI Use Cases", detail: "Generating AI opportunities with 6 primitives..." },
+        { delay: 16000, step: 6, message: "Step 5: Benefit Quantification", detail: "Calculating ROI across 4 drivers..." },
+        { delay: 20000, step: 7, message: "Step 6: Token Modeling", detail: "Estimating token costs per use case..." },
+        { delay: 24000, step: 8, message: "Step 7: Priority Scoring", detail: "Computing weighted priority scores..." },
+      ];
+
+      const timers: ReturnType<typeof setTimeout>[] = [];
+      let cancelled = false;
+
+      for (const ps of progressSteps) {
+        const timer = setTimeout(() => {
+          if (cancelled) return;
+          setCurrentStep({ step: ps.step, message: ps.message, detail: ps.detail });
+          if (ps.step > 1) {
             setCompletedSteps(prev => {
-              if (!prev.includes(update.step - 1) && update.step > 1) {
-                return [...prev, update.step - 1];
-              }
+              if (!prev.includes(ps.step - 1)) return [...prev, ps.step - 1];
               return prev;
             });
           }
-          
-          if (update.step === 100) {
-            setCompletedSteps([0, 1, 2, 3, 4, 5, 6, 7, 8]);
-            eventSource.close();
-          }
-          
-          if (update.step === -1) {
-            eventSource.close();
-          }
-        } catch (e) {
-          console.error("Error parsing progress update:", e);
-        }
-      };
-
-      eventSource.onerror = () => {
-        eventSource.close();
-      };
+        }, ps.delay);
+        timers.push(timer);
+      }
 
       let response: Response;
       try {
-        // Use AbortController with 5-minute timeout for long-running analysis
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           controller.abort();
-        }, 5 * 60 * 1000); // 5 minutes
-        
+        }, 5 * 60 * 1000);
+
         response = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyName, sessionId }),
+          body: JSON.stringify({ companyName }),
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
       } catch (fetchError: any) {
-        eventSource.close();
+        cancelled = true;
+        timers.forEach(clearTimeout);
         if (fetchError?.name === 'AbortError') {
           throw new Error('Analysis timed out after 5 minutes. Please try again.');
         }
         throw new Error(`Network error: ${fetchError?.message || 'Failed to connect to server'}`);
       }
 
-      eventSource.close();
+      cancelled = true;
+      timers.forEach(clearTimeout);
 
       if (!response.ok) {
         let errorMessage = "Failed to generate analysis";
@@ -361,47 +356,30 @@ export default function Report() {
       setError(null);
       setCompletedSteps([]);
       
-      const sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const eventSource = new EventSource(`/api/progress/${sessionId}`);
-      
-      eventSource.onmessage = (event) => {
-        try {
-          const update: ProgressUpdate = JSON.parse(event.data);
-          setCurrentStep(update);
-          if (update.step === 100 || update.step === -1) {
-            eventSource.close();
-          }
-        } catch (e) {
-          console.error("Error parsing progress update:", e);
-        }
-      };
+      // Client-side progress simulation for regeneration
+      setCurrentStep({ step: 1, message: "Regenerating Analysis", detail: "Starting fresh analysis..." });
 
       let response: Response;
       try {
-        // Use AbortController with 5-minute timeout for long-running analysis
         const controller = new AbortController();
         const timeoutId = setTimeout(() => {
           controller.abort();
-        }, 5 * 60 * 1000); // 5 minutes
-        
+        }, 5 * 60 * 1000);
+
         response = await fetch(`/api/regenerate/${reportId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyName, sessionId }),
+          body: JSON.stringify({ companyName }),
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
       } catch (fetchError: any) {
-        eventSource.close();
         if (fetchError?.name === 'AbortError') {
           throw new Error('Analysis timed out after 5 minutes. Please try again.');
         }
         throw new Error(`Network error: ${fetchError?.message || 'Failed to connect to server'}`);
       }
-
-      eventSource.close();
 
       if (!response.ok) {
         let errorMessage = "Failed to regenerate analysis";

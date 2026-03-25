@@ -1,40 +1,15 @@
 import pRetry, { AbortError } from "p-retry";
 import Anthropic from "@anthropic-ai/sdk";
-import https from "https";
-
-// Create a custom HTTPS agent that bypasses any proxy settings
-const directAgent = new https.Agent({
-  rejectUnauthorized: true,
-});
 
 // Helper to get current configuration (evaluated at call time, not module load)
 function getConfig() {
   const isProduction = process.env.NODE_ENV === 'production';
-  const configuredBaseURL = process.env.AI_INTEGRATIONS_ANTHROPIC_BASE_URL;
-  const integrationApiKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-  
-  // Use the Replit-managed integration for both development and production
-  // The AI_INTEGRATIONS_ANTHROPIC_API_KEY is the preferred, secure approach
-  let apiKey: string | undefined;
-  let baseURL: string | undefined;
-  let usingIntegration = false;
-  
-  if (integrationApiKey) {
-    // Use Replit-managed integration (works in both dev and production)
-    apiKey = integrationApiKey;
-    baseURL = configuredBaseURL; // Use integration base URL if available
-    usingIntegration = true;
-  } else {
-    apiKey = undefined;
-    baseURL = undefined;
-  }
-  
+  // Support both Vercel (ANTHROPIC_API_KEY) and Replit (AI_INTEGRATIONS_ANTHROPIC_API_KEY) naming
+  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
+
   return {
     isProduction,
-    integrationApiKey,
-    usingIntegration,
     apiKey,
-    baseURL,
   };
 }
 
@@ -43,84 +18,48 @@ let anthropicClient: Anthropic | null = null;
 
 function getAnthropicClient(): Anthropic {
   const config = getConfig();
-  
+
   if (!config.apiKey) {
-    throw new Error("Anthropic API key is not configured");
+    throw new Error("Anthropic API key is not configured. Set ANTHROPIC_API_KEY environment variable.");
   }
-  
-  // Create client with custom fetch that uses direct agent (no proxy)
-  const clientOptions: any = {
+
+  anthropicClient = new Anthropic({
     apiKey: config.apiKey,
-  };
-  
-  if (config.baseURL) {
-    clientOptions.baseURL = config.baseURL;
-  }
-  
-  // In production, use custom fetch with direct HTTPS agent to bypass proxy
-  if (config.isProduction) {
-    clientOptions.fetch = async (url: string, init: any) => {
-      // Clear any proxy environment variables for this request
-      const originalHttpProxy = process.env.HTTP_PROXY;
-      const originalHttpsProxy = process.env.HTTPS_PROXY;
-      const originalHttpProxyLower = process.env.http_proxy;
-      const originalHttpsProxyLower = process.env.https_proxy;
-      
-      delete process.env.HTTP_PROXY;
-      delete process.env.HTTPS_PROXY;
-      delete process.env.http_proxy;
-      delete process.env.https_proxy;
-      
-      try {
-        const response = await fetch(url, {
-          ...init,
-        });
-        return response;
-      } finally {
-        // Restore proxy env vars
-        if (originalHttpProxy) process.env.HTTP_PROXY = originalHttpProxy;
-        if (originalHttpsProxy) process.env.HTTPS_PROXY = originalHttpsProxy;
-        if (originalHttpProxyLower) process.env.http_proxy = originalHttpProxyLower;
-        if (originalHttpsProxyLower) process.env.https_proxy = originalHttpsProxyLower;
-      }
-    };
-  }
-  
-  anthropicClient = new Anthropic(clientOptions);
+  });
   return anthropicClient;
 }
 
 // API call using official Anthropic SDK
 async function callAnthropicAPI(systemPrompt: string, userPrompt: string, maxTokens: number = 16000): Promise<string> {
   const config = getConfig();
-  
+
   if (!config.apiKey) {
     console.error("[callAnthropicAPI] No API key configured");
     throw new Error("Anthropic API key is not configured");
   }
-  
+
   try {
-    console.log("[callAnthropicAPI] Making API request using Anthropic SDK, production:", config.isProduction);
-    
+    console.log("[callAnthropicAPI] Making API request using Anthropic SDK");
+
     const client = getAnthropicClient();
-    
+
     const message = await client.messages.create({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     });
-    
+
     console.log("[callAnthropicAPI] Response received successfully");
-    
+
     if (!message.content || !message.content[0] || message.content[0].type !== "text") {
       console.error("[callAnthropicAPI] Invalid response format");
       throw new Error("Invalid response format from Anthropic API");
     }
-    
+
     const text = message.content[0].text;
     console.log("[callAnthropicAPI] Response parsed successfully, content length:", text.length);
-    
+
     return text;
   } catch (error: any) {
     console.error("[callAnthropicAPI] Exception caught:", {
@@ -135,15 +74,14 @@ async function callAnthropicAPI(systemPrompt: string, userPrompt: string, maxTok
 // Export a function to check if production is properly configured
 export function checkProductionConfig(): { ok: boolean; message: string } {
   const config = getConfig();
-  
-  // Check if we have the Replit-managed integration API key
+
   if (!config.apiKey) {
     return {
       ok: false,
-      message: "No Anthropic API key configured. Please set up the Anthropic integration in Replit."
+      message: "No Anthropic API key configured. Set ANTHROPIC_API_KEY environment variable."
     };
   }
-  return { ok: true, message: `AI service configured (using Replit-managed integration)` };
+  return { ok: true, message: "AI service configured" };
 }
 
 // Helper function to check if error is rate limit or transient
@@ -439,7 +377,7 @@ Priority Tiers: Critical (80-100), High (60-79), Medium (40-59), Low (0-39)
 Also calculate Executive Dashboard metrics:
 - Total Annual Revenue Benefit (sum of all use cases)
 - Total Annual Cost Benefit
-- Total Annual Cash Flow Benefit  
+- Total Annual Cash Flow Benefit
 - Total Annual Risk Benefit
 - Total Annual Value (all drivers combined)
 - Total Monthly Tokens (all use cases)
@@ -513,37 +451,35 @@ CRITICAL REQUIREMENT: Your ENTIRE response must be valid JSON - no markdown, no 
 
   // Get current configuration and verify API key
   const config = getConfig();
-  
-  // Simply check if we have the integration API key available
+
   if (!config.apiKey) {
-    throw new Error("Anthropic API key is not configured. Please set up the Anthropic integration in Replit.");
+    throw new Error("Anthropic API key is not configured. Set ANTHROPIC_API_KEY environment variable.");
   }
 
   console.log(`Starting analysis for: ${companyName}`);
 
   try {
     // Use pRetry for automatic retries on transient failures
-    // Rate limits (429) need MUCH longer waits - up to 60-90 seconds
     const responseText = await pRetry(
       async () => {
         try {
           return await callAnthropicAPI(systemPrompt, userPrompt, 16000);
         } catch (error: any) {
           console.error(`API call attempt failed:`, error?.message || error);
-          
+
           // For rate limit errors (429), wait longer before retrying
           if (error?.status === 429 || error?.message?.includes("429") || error?.message?.toLowerCase().includes("rate limit")) {
             console.log("Rate limit hit - waiting 60 seconds before retry...");
-            await new Promise(resolve => setTimeout(resolve, 60000)); // Wait 60 seconds
-            throw error; // Then retry
+            await new Promise(resolve => setTimeout(resolve, 60000));
+            throw error;
           }
-          
+
           // Check if it's a retryable error
           if (isRetryableError(error)) {
             console.log("Retrying due to transient error...");
-            throw error; // Rethrow to trigger retry
+            throw error;
           }
-          
+
           // For non-retryable errors, abort retries
           throw new AbortError(error);
         }
@@ -560,34 +496,32 @@ CRITICAL REQUIREMENT: Your ENTIRE response must be valid JSON - no markdown, no 
     );
 
     console.log(`Received response for: ${companyName}`);
-    
+
     if (!responseText) {
       throw new Error("Empty response received from AI service");
     }
-    
+
     let jsonText = responseText.trim();
-    
+
     // Handle various response formats
-    // Remove markdown code blocks
     if (jsonText.startsWith("```json")) {
       jsonText = jsonText.replace(/^```json\s*/g, "").replace(/\s*```$/g, "");
     } else if (jsonText.startsWith("```")) {
       jsonText = jsonText.replace(/^```\s*/g, "").replace(/\s*```$/g, "");
     }
-    
+
     // Try to find JSON object if there's text before/after it
     const jsonStartIndex = jsonText.indexOf('{');
     const jsonEndIndex = jsonText.lastIndexOf('}');
-    
+
     if (jsonStartIndex === -1 || jsonEndIndex === -1) {
       console.error("No JSON object found in response");
       console.error("Raw response (first 1000 chars):", responseText.substring(0, 1000));
       throw new Error("AI response does not contain valid JSON. The model returned text instead of the requested JSON format.");
     }
-    
-    // Extract just the JSON portion
+
     jsonText = jsonText.substring(jsonStartIndex, jsonEndIndex + 1);
-    
+
     try {
       const analysis = JSON.parse(jsonText);
       console.log(`Successfully parsed analysis for: ${companyName}`);
@@ -599,15 +533,13 @@ CRITICAL REQUIREMENT: Your ENTIRE response must be valid JSON - no markdown, no 
     }
   } catch (error: any) {
     console.error("AI Analysis Error:", error);
-    
-    // Extract the original error if wrapped by pRetry
+
     const originalError = error.originalError || error;
-    
-    // Provide more specific error messages
+
     if (originalError.status === 401) {
       throw new Error("Authentication failed. Please check your Anthropic API key configuration.");
     } else if (originalError.status === 429 || originalError.message?.includes("429") || originalError.message?.toLowerCase().includes("rate limit")) {
-      throw new Error("The AI service is busy. Please wait 1-2 minutes and try again. This is normal during high usage periods.");
+      throw new Error("The AI service is busy. Please wait 1-2 minutes and try again.");
     } else if (originalError.status === 500 || originalError.status === 503) {
       throw new Error("AI service is temporarily unavailable. Please try again in a few minutes.");
     } else if (originalError.code === 'ECONNREFUSED' || originalError.code === 'ENOTFOUND') {
@@ -615,14 +547,14 @@ CRITICAL REQUIREMENT: Your ENTIRE response must be valid JSON - no markdown, no 
     } else if (originalError.message) {
       throw new Error(originalError.message);
     }
-    
+
     throw new Error("Failed to generate company analysis. Please try again.");
   }
 }
 
 export async function generateWhatIfSuggestion(
-  step: number, 
-  context: any, 
+  step: number,
+  context: any,
   currentData: any[]
 ): Promise<any> {
   const stepDescriptions: Record<number, string> = {
@@ -634,7 +566,7 @@ export async function generateWhatIfSuggestion(
     7: "Priority Scoring & Roadmap - Generate priority records with ID, Use Case, Value Score, TTV Score, Effort Score, Priority Score, Priority Tier, and Recommended Phase"
   };
 
-  const systemPrompt = `You are an AI assistant helping users create What-If scenarios for enterprise AI assessments. 
+  const systemPrompt = `You are an AI assistant helping users create What-If scenarios for enterprise AI assessments.
 Generate a single NEW record suggestion for Step ${step}: ${stepDescriptions[step] || 'Analysis step'}.
 
 Context about the company and existing analysis:
@@ -657,14 +589,14 @@ Return ONLY valid JSON for the new record object.`;
 
   try {
     const responseText = await callAnthropicAPI(systemPrompt, userPrompt, 2000);
-    
+
     let jsonText = responseText.trim();
     if (jsonText.startsWith("```json")) {
       jsonText = jsonText.replace(/```json\n?/g, "").replace(/```\n?$/g, "");
     } else if (jsonText.startsWith("```")) {
       jsonText = jsonText.replace(/```\n?/g, "").replace(/```\n?$/g, "");
     }
-    
+
     return JSON.parse(jsonText);
   } catch (error) {
     console.error("AI Suggestion Error:", error);
