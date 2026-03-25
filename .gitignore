@@ -1,6 +1,5 @@
 node_modules/
 dist/
 .vercel
-api/index.js
 .env
 .env.local
