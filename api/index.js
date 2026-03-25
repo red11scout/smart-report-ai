@@ -36277,7 +36277,7 @@ var init_schema2 = __esm({
   }
 });
 
-// api/index.ts
+// api/index.src.ts
 var import_express = __toESM(require_express2(), 1);
 
 // node_modules/@neondatabase/serverless/index.mjs
@@ -48476,7 +48476,7 @@ async function registerRoutes(httpServer2, app2) {
   return httpServer2;
 }
 
-// api/index.ts
+// api/index.src.ts
 import { createServer } from "http";
 var app = (0, import_express.default)();
 var httpServer = createServer(app);

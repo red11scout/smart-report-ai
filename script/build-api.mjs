@@ -2,7 +2,7 @@ import esbuild from "esbuild";
 
 // Bundle the API function with all server dependencies into a single file
 await esbuild.build({
-  entryPoints: ["api/index.ts"],
+  entryPoints: ["api/index.src.ts"],
   outfile: "api/index.js",
   bundle: true,
   platform: "node",
