@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
-import * as schema from "@shared/schema";
+import * as schema from "../shared/schema";
 
 function getDatabaseUrl(): string {
   // Priority 1: Use NEON_DB_URL if available

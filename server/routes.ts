@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { generateCompanyAnalysis, generateWhatIfSuggestion, checkProductionConfig } from "./ai-service";
 import * as formulaService from "./formula-service";
-import { insertReportSchema } from "@shared/schema";
+import { insertReportSchema } from "../shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -487,7 +487,7 @@ export async function registerRoutes(
         ASSUMPTION_CATEGORIES, 
         CATEGORY_TO_PARENT,
         CATEGORY_LABELS 
-      } = await import("@shared/schema");
+      } = await import("../shared/schema");
       
       return res.json({
         parentCategories: PARENT_CATEGORIES,

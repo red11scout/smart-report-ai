@@ -1,4 +1,4 @@
-import { db } from "@db";
+import { db } from "./db";
 import { 
   reports, 
   assumptionSets,
@@ -17,7 +17,7 @@ import {
   ASSUMPTION_CATEGORIES,
   type AssumptionCategory,
   type CalculatedFieldKey
-} from "@shared/schema";
+} from "../shared/schema";
 import { eq, desc, and, like, sql, isNull } from "drizzle-orm";
 
 export interface IStorage {
