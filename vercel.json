@@ -11,7 +11,6 @@
     },
     "api/debug.ts": {
       "includeFiles": "server/**,shared/**"
-    },
-    "api/test.ts": {}
+    }
   }
 }
